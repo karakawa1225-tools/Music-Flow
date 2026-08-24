@@ -1,15 +1,11 @@
 import { createClient, type Client } from '@libsql/client'
 import { readFileSync, existsSync, mkdirSync } from 'fs'
-import { dirname, join, resolve } from 'path'
+import { join, resolve } from 'path'
 
 let client: Client | null = null
 
 function schemaCandidates(): string[] {
-  return [
-    join(process.cwd(), 'turso', 'schema.sql'),
-    join(process.cwd(), 'schema.sql'),
-    join(__dirname, '..', '..', 'turso', 'schema.sql')
-  ]
+  return [join(process.cwd(), 'turso', 'schema.sql'), join(process.cwd(), 'schema.sql')]
 }
 
 export function getDb(): Client {
