@@ -21,11 +21,13 @@ export function getDb(): Client {
 
   const url = looksPlaceholder
     ? `file:${resolve(process.cwd(), 'data', 'music-flow.db')}`
-    : rawUrl
+    : rawUrl.startsWith('libsql://')
+      ? rawUrl.replace(/^libsql:\/\//, 'https://')
+      : rawUrl
 
   if (url.startsWith('file:')) {
     const filePath = url.replace(/^file:/, '')
-    mkdirSync(dirname(filePath), { recursive: true })
+    mkdirSync(resolve(filePath, '..'), { recursive: true })
   }
 
   client = createClient({
