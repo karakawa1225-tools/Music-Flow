@@ -16,3 +16,5 @@ db-shm
 release
 installer/*
 !installer/README.md
+.vercel
+.env*

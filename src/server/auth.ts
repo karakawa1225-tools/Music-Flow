@@ -1,11 +1,10 @@
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcryptjs'
-import { SignJWT, jwtVerify } from 'jose'
+import jwt from 'jsonwebtoken'
 import type { Context, Next } from 'hono'
 import { getDb } from './db'
 
-const JWT_SECRET = () =>
-  new TextEncoder().encode(process.env.JWT_SECRET || 'music-flow-dev-secret-change-me')
+const JWT_SECRET = () => process.env.JWT_SECRET || 'music-flow-dev-secret-change-me'
 
 export type AuthUser = { id: string; email: string }
 
@@ -18,17 +17,16 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export async function signToken(user: AuthUser): Promise<string> {
-  return new SignJWT({ email: user.email })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(user.id)
-    .setIssuedAt()
-    .setExpirationTime('30d')
-    .sign(JWT_SECRET())
+  return jwt.sign({ email: user.email }, JWT_SECRET(), {
+    subject: user.id,
+    expiresIn: '30d'
+  })
 }
 
 export async function verifyToken(token: string): Promise<AuthUser | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET())
+    const payload = jwt.verify(token, JWT_SECRET())
+    if (typeof payload === 'string') return null
     if (!payload.sub || typeof payload.email !== 'string') return null
     return { id: payload.sub, email: payload.email }
   } catch {
