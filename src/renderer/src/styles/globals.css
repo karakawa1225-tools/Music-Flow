@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --mf-bg: #0d0d12;
+  --mf-surface: #16161e;
+  --mf-elevated: #1c1c28;
+  --mf-border: #2a2a3a;
+  --mf-muted: #8b8b9e;
+  --mf-text: #f2f2f7;
+  --mf-accent: #7c4dff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--mf-bg);
+  color: var(--mf-text);
+  font-family: Manrope, system-ui, sans-serif;
+}
+
+body {
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 139, 158, 0.35);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 139, 158, 0.55);
+}
+
+.glass {
+  background: rgba(22, 22, 30, 0.72);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.horizontal-scroll {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scroll-snap-type: x proximity;
+}
+
+.horizontal-scroll > * {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: fade-in 180ms ease-out;
+}
+
+@keyframes player-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes player-slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.eq-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 28px;
+  height: 180px;
+  accent-color: #7c4dff;
+}
+
+.knob-range {
+  accent-color: #7c4dff;
+}
+
+.seek-range {
+  height: 6px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.seek-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.seek-range::-webkit-slider-thumb {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.seek-range::-moz-range-thumb {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+

@@ -1,0 +1,48 @@
+appId: com.musicflow.app
+productName: MUSIC FLOW
+copyright: Copyright © MUSIC FLOW
+directories:
+  buildResources: resources
+  output: installer
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!scripts/*'
+  - '!installer/*'
+  - '!electron.vite.config.*'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.*.tsbuildinfo}'
+  - '!tailwind.config.js'
+  - '!postcss.config.js'
+  - '!README.md'
+asar: true
+asarUnpack:
+  - '**/sql.js/dist/*.wasm'
+  - '**/sql.js/**/*.wasm'
+extraResources:
+  - from: resources/system-covers
+    to: system-covers
+  - from: resources/icon.ico
+    to: icon.ico
+win:
+  icon: resources/icon.ico
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: MUSIC-FLOW-Setup-${version}.${ext}
+  executableName: MUSIC FLOW
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: MUSIC FLOW
+  menuCategory: false
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
