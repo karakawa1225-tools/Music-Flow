@@ -1,11 +1,16 @@
 import { createClient, type Client } from '@libsql/client'
 import { readFileSync, existsSync, mkdirSync } from 'fs'
 import { dirname, join, resolve } from 'path'
-import { fileURLToPath } from 'url'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
 
 let client: Client | null = null
+
+function schemaCandidates(): string[] {
+  return [
+    join(process.cwd(), 'turso', 'schema.sql'),
+    join(process.cwd(), 'schema.sql'),
+    join(__dirname, '..', '..', 'turso', 'schema.sql')
+  ]
+}
 
 export function getDb(): Client {
   if (client) return client
@@ -37,12 +42,7 @@ export function getDb(): Client {
 export async function migrate(): Promise<void> {
   const db = getDb()
   let sql = ''
-  const candidates = [
-    join(__dirname, '..', '..', 'turso', 'schema.sql'),
-    join(process.cwd(), 'turso', 'schema.sql'),
-    join(process.cwd(), 'schema.sql')
-  ]
-  for (const schemaPath of candidates) {
+  for (const schemaPath of schemaCandidates()) {
     if (existsSync(schemaPath)) {
       sql = readFileSync(schemaPath, 'utf8')
       break
