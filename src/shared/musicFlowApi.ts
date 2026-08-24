@@ -21,6 +21,8 @@ export interface MusicFlowApi {
   selectMusicFolder: () => Promise<string | null>
   selectCoverImage: () => Promise<string | null>
   selectMp3Files: () => Promise<string[]>
+  /** Web: pick a folder of MP3s as one album. Desktop: add music folder. */
+  selectAlbumFolder: () => Promise<string[]>
   openPath: (targetPath: string) => Promise<unknown>
 
   listFolders: () => Promise<LibraryFolder[]>
@@ -29,7 +31,7 @@ export interface MusicFlowApi {
   scanLibrary: () => Promise<unknown>
   importFiles: (filePaths: string[]) => Promise<unknown>
   /** Browser / drag-drop uploads (Web). Desktop maps Files → paths. */
-  importBrowserFiles: (files: File[]) => Promise<unknown>
+  importBrowserFiles: (files: File[], options?: { albumTitle?: string }) => Promise<unknown>
   getStats: () => Promise<LibraryStats>
   onScanProgress: (callback: (progress: ScanProgress) => void) => () => void
 

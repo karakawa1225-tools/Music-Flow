@@ -14,6 +14,11 @@ const api: MusicFlowApi = {
   selectMusicFolder: () => ipcRenderer.invoke(IPC.SELECT_MUSIC_FOLDER) as Promise<string | null>,
   selectCoverImage: () => ipcRenderer.invoke(IPC.SELECT_COVER_IMAGE) as Promise<string | null>,
   selectMp3Files: () => ipcRenderer.invoke(IPC.SELECT_MP3_FILES) as Promise<string[]>,
+  selectAlbumFolder: async () => {
+    const folder = await ipcRenderer.invoke(IPC.SELECT_MUSIC_FOLDER) as string | null
+    if (folder) await ipcRenderer.invoke(IPC.ADD_FOLDER, folder)
+    return folder ? [folder] : []
+  },
   openPath: (targetPath: string) => ipcRenderer.invoke(IPC.OPEN_PATH, targetPath),
 
   listFolders: () => ipcRenderer.invoke(IPC.LIST_FOLDERS),

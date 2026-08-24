@@ -68,9 +68,15 @@ async function createTrackRecord(input: {
   duration: number
   storagePath: string
   fileSize: number
+  albumTitle?: string | null
+  artistName?: string | null
 }) {
-  const artistId = await ensureArtist(input.userId, 'Unknown Artist')
-  const albumId = await ensureAlbum(input.userId, 'Unknown Album', artistId)
+  const artistId = await ensureArtist(input.userId, input.artistName || 'Unknown Artist')
+  const albumId = await ensureAlbum(
+    input.userId,
+    input.albumTitle || 'Unknown Album',
+    artistId
+  )
   const db = getDb()
   const inserted = await db.execute({
     sql: `
@@ -342,6 +348,8 @@ export function createApp() {
       filename?: string
       duration?: number
       fileSize?: number
+      albumTitle?: string | null
+      artistName?: string | null
     }>()
     const storagePath = (body.storagePath || '').trim()
     const filename = (body.filename || '').trim()
@@ -362,7 +370,9 @@ export function createApp() {
       filename,
       duration: Number(body.duration) || 0,
       storagePath,
-      fileSize: Math.max(0, Number(body.fileSize) || 0)
+      fileSize: Math.max(0, Number(body.fileSize) || 0),
+      albumTitle: body.albumTitle,
+      artistName: body.artistName
     })
     return c.json(track)
   })
@@ -378,6 +388,8 @@ export function createApp() {
     }
 
     const duration = Number(form.get('duration') || 0)
+    const albumTitle = String(form.get('albumTitle') || '').trim() || null
+    const artistName = String(form.get('artistName') || '').trim() || null
     const id = randomUUID()
     const relativePath = `${user.id}/${id}.mp3`
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -398,7 +410,9 @@ export function createApp() {
       filename: file.name,
       duration,
       storagePath,
-      fileSize: buffer.length
+      fileSize: buffer.length,
+      albumTitle,
+      artistName
     })
     return c.json(track)
   })

@@ -48,12 +48,18 @@ async function putToBlob(pathname: string, file: File, kind: 'audio' | 'cover', 
   })
 }
 
-export async function uploadTrackFile(file: File, duration: number) {
+export async function uploadTrackFile(
+  file: File,
+  duration: number,
+  options?: { albumTitle?: string; artistName?: string }
+) {
   const config = await getUploadConfig()
   if (!config.directBlob) {
     const form = new FormData()
     form.append('file', file)
     form.append('duration', String(duration))
+    if (options?.albumTitle) form.append('albumTitle', options.albumTitle)
+    if (options?.artistName) form.append('artistName', options.artistName)
     return apiFetch('/api/upload', { method: 'POST', body: form })
   }
 
@@ -71,7 +77,9 @@ export async function uploadTrackFile(file: File, duration: number) {
       storagePath: blob.url,
       filename: file.name,
       duration,
-      fileSize: file.size
+      fileSize: file.size,
+      albumTitle: options?.albumTitle ?? null,
+      artistName: options?.artistName ?? null
     })
   })
 }

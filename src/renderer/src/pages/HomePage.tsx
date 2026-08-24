@@ -1,11 +1,74 @@
 import { useNavigate } from 'react-router-dom'
-import { FolderPlus, Upload } from 'lucide-react'
+import { Disc3, FolderPlus, Upload } from 'lucide-react'
 import { TopBar } from '@renderer/components/TopBar'
 import { MediaCard, TrackTable } from '@renderer/components/Shared'
 import { useLibraryStore } from '@renderer/stores/libraryStore'
 import { usePlayerStore } from '@renderer/stores/playerStore'
 import { formatDuration } from '@renderer/lib/utils'
 import { isWebRuntime } from '@shared/platform'
+
+async function refreshAfterUpload() {
+  await useLibraryStore.getState().refreshLibrary()
+}
+
+function HomeUploadActions({
+  web,
+  onAddFolder
+}: {
+  web: boolean
+  onAddFolder: () => void
+}) {
+  const scanProgress = useLibraryStore((s) => s.scanProgress)
+  const busy = scanProgress.phase !== 'idle'
+
+  if (web) {
+    return (
+      <div className="flex flex-col items-stretch gap-2 sm:items-end">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void window.musicFlow.selectMp3Files().then(() => refreshAfterUpload())}
+            className="inline-flex items-center gap-2 rounded-xl bg-mf-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-mf-accent-hover disabled:opacity-60"
+          >
+            <Upload className="h-4 w-4" />
+            MP3をアップロード
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void window.musicFlow.selectAlbumFolder().then(() => refreshAfterUpload())
+            }
+            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-mf-text hover:bg-white/10 disabled:opacity-60"
+          >
+            <Disc3 className="h-4 w-4" />
+            アルバムをアップロード
+          </button>
+        </div>
+        {busy ? (
+          <p className="text-xs text-mf-muted">
+            {scanProgress.message}
+            {scanProgress.total > 0
+              ? ` (${scanProgress.current.toLocaleString()} / ${scanProgress.total.toLocaleString()})`
+              : ''}
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onAddFolder}
+      className="inline-flex items-center gap-2 rounded-xl bg-mf-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-mf-accent-hover"
+    >
+      <FolderPlus className="h-4 w-4" />
+      音楽フォルダを追加
+    </button>
+  )
+}
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -29,33 +92,13 @@ export function HomePage() {
           <h2 className="font-display text-3xl font-semibold">音楽ライブラリを始めましょう</h2>
           <p className="mt-3 max-w-md text-mf-muted">
             {web
-              ? 'MP3をアップロードすると、ブラウザからストリーミング再生できます。'
+              ? 'MP3ファイル、またはアルバムフォルダをアップロードするとストリーミング再生できます。'
               : 'MP3ファイルまたは音楽フォルダを追加してください。'}
           </p>
           {error ? <p className="mt-3 text-sm text-mf-danger">{error}</p> : null}
-          {web ? (
-            <button
-              type="button"
-              onClick={() =>
-                void window.musicFlow.selectMp3Files().then(() =>
-                  useLibraryStore.getState().refreshLibrary()
-                )
-              }
-              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-mf-accent px-5 py-3 text-sm font-semibold text-white hover:bg-mf-accent-hover"
-            >
-              <Upload className="h-4 w-4" />
-              MP3をアップロード
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void addFolder()}
-              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-mf-accent px-5 py-3 text-sm font-semibold text-white hover:bg-mf-accent-hover"
-            >
-              <FolderPlus className="h-4 w-4" />
-              音楽フォルダを追加
-            </button>
-          )}
+          <div className="mt-8">
+            <HomeUploadActions web={web} onAddFolder={() => void addFolder()} />
+          </div>
         </div>
       </div>
     )
@@ -66,16 +109,19 @@ export function HomePage() {
   return (
     <div className="page-enter">
       <TopBar />
-      <div className="mb-8">
-        <div className="font-display text-3xl font-semibold">こんにちは！</div>
-        <div className="mt-1 text-mf-muted">あなたの音楽ライブラリ</div>
-        {stats ? (
-          <div className="mt-3 text-xs text-mf-muted">
-            {stats.trackCount.toLocaleString()} 曲 · {stats.albumCount.toLocaleString()} アルバム ·{' '}
-            {stats.artistCount.toLocaleString()} アーティスト
-          </div>
-        ) : null}
-        {error ? <p className="mt-2 text-sm text-mf-danger">{error}</p> : null}
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="font-display text-3xl font-semibold">こんにちは！</div>
+          <div className="mt-1 text-mf-muted">あなたの音楽ライブラリ</div>
+          {stats ? (
+            <div className="mt-3 text-xs text-mf-muted">
+              {stats.trackCount.toLocaleString()} 曲 · {stats.albumCount.toLocaleString()} アルバム ·{' '}
+              {stats.artistCount.toLocaleString()} アーティスト
+            </div>
+          ) : null}
+          {error ? <p className="mt-2 text-sm text-mf-danger">{error}</p> : null}
+        </div>
+        <HomeUploadActions web={web} onAddFolder={() => void addFolder()} />
       </div>
 
       <section className="mb-10">

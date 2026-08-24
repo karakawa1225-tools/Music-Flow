@@ -32,7 +32,7 @@ interface LibraryState {
   removeFolder: (id: number) => Promise<void>
   scanLibrary: () => Promise<void>
   importFiles: (paths: string[]) => Promise<void>
-  importBrowserFiles: (files: File[]) => Promise<void>
+  importBrowserFiles: (files: File[], options?: { albumTitle?: string }) => Promise<void>
   toggleFavorite: (trackId: number) => Promise<void>
   createPlaylist: (name: string, description?: string, coverPath?: string | null) => Promise<Playlist | null>
   updatePlaylist: (
@@ -207,7 +207,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
 
-  importBrowserFiles: async (files) => {
+  importBrowserFiles: async (files, options) => {
     if (!files.length) return
     set({
       scanProgress: {
@@ -219,7 +219,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       error: null
     })
     try {
-      await window.musicFlow.importBrowserFiles(files)
+      await window.musicFlow.importBrowserFiles(files, options)
       await get().setSettings({ showWelcome: false })
       await get().refreshLibrary()
     } catch (error) {

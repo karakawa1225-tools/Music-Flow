@@ -49,9 +49,22 @@ export function createWebMusicFlowApi(): MusicFlowApi {
       return []
     },
 
+    selectAlbumFolder: async () => {
+      const files = await pickFiles({
+        accept: 'audio/mpeg,audio/mp3,.mp3',
+        multiple: true,
+        directory: true
+      })
+      const mp3s = files.filter((f) => /\.mp3$/i.test(f.name) || f.type === 'audio/mpeg')
+      if (!mp3s.length) return []
+      const albumTitle = albumTitleFromFiles(mp3s)
+      await api.importBrowserFiles(mp3s, { albumTitle })
+      return []
+    },
+
     listFolders: async () => [],
     addFolder: async () => {
-      throw new Error('Web版ではフォルダ追加はできません。MP3をアップロードしてください。')
+      throw new Error('Web版ではフォルダ追加はできません。アルバムまたはMP3をアップロードしてください。')
     },
     removeFolder: async () => undefined,
     scanLibrary: async () => undefined,
@@ -59,7 +72,7 @@ export function createWebMusicFlowApi(): MusicFlowApi {
       throw new Error('Web版では importBrowserFiles を使ってください')
     },
 
-    importBrowserFiles: async (files) => {
+    importBrowserFiles: async (files, options) => {
       const mp3s = files.filter((f) => /\.mp3$/i.test(f.name) || f.type === 'audio/mpeg')
       if (!mp3s.length) return
 
@@ -67,7 +80,9 @@ export function createWebMusicFlowApi(): MusicFlowApi {
       let completed = 0
       await mapPool(mp3s, 3, async (file) => {
         const duration = await pickAudioDuration(file)
-        await uploadTrackFile(file, duration)
+        await uploadTrackFile(file, duration, {
+          albumTitle: options?.albumTitle
+        })
         completed += 1
         emitScan({
           phase: 'parsing',
@@ -214,12 +229,26 @@ export function createWebMusicFlowApi(): MusicFlowApi {
   return api
 }
 
-function pickFiles(options: { accept: string; multiple?: boolean }): Promise<File[]> {
+function albumTitleFromFiles(files: File[]): string {
+  const relative = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || ''
+  const folder = relative.split(/[/\\]/).filter(Boolean)[0]
+  return folder?.trim() || 'Uploaded Album'
+}
+
+function pickFiles(options: {
+  accept: string
+  multiple?: boolean
+  directory?: boolean
+}): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = options.accept
     input.multiple = Boolean(options.multiple)
+    if (options.directory) {
+      input.setAttribute('webkitdirectory', '')
+      input.setAttribute('directory', '')
+    }
     let settled = false
     const finish = (files: File[]) => {
       if (settled) return
