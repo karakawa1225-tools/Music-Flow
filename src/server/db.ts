@@ -36,10 +36,100 @@ export function getDb(): Client {
 
 export async function migrate(): Promise<void> {
   const db = getDb()
-  const schemaPath = join(__dirname, '..', '..', 'turso', 'schema.sql')
-  const sql = existsSync(schemaPath)
-    ? readFileSync(schemaPath, 'utf8')
-    : readFileSync(join(process.cwd(), 'turso', 'schema.sql'), 'utf8')
+  let sql = ''
+  const candidates = [
+    join(__dirname, '..', '..', 'turso', 'schema.sql'),
+    join(process.cwd(), 'turso', 'schema.sql'),
+    join(process.cwd(), 'schema.sql')
+  ]
+  for (const schemaPath of candidates) {
+    if (existsSync(schemaPath)) {
+      sql = readFileSync(schemaPath, 'utf8')
+      break
+    }
+  }
+  if (!sql) {
+    // Fallback when bundled without filesystem schema
+    sql = `
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  display_name TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS artists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, name)
+);
+CREATE TABLE IF NOT EXISTS albums (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  artist_id INTEGER,
+  year INTEGER,
+  genre TEXT,
+  cover_path TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS tracks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  artist_id INTEGER,
+  album_id INTEGER,
+  genre TEXT,
+  year INTEGER,
+  track_number INTEGER,
+  disc_number INTEGER,
+  duration REAL NOT NULL DEFAULT 0,
+  bitrate INTEGER,
+  sample_rate INTEGER,
+  cover_path TEXT,
+  storage_path TEXT NOT NULL,
+  file_size INTEGER,
+  is_favorite INTEGER NOT NULL DEFAULT 0,
+  play_count INTEGER NOT NULL DEFAULT 0,
+  last_played_at TEXT,
+  last_position REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS playlists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  cover_path TEXT,
+  is_system INTEGER NOT NULL DEFAULT 0,
+  system_key TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, system_key)
+);
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL,
+  track_id INTEGER NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (playlist_id, track_id)
+);
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id TEXT PRIMARY KEY,
+  settings_json TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS playback_snapshots (
+  user_id TEXT PRIMARY KEY,
+  snapshot_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`
+  }
 
   const withoutLineComments = sql
     .split(/\r?\n/)

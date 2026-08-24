@@ -102,6 +102,9 @@ export function createWebMusicFlowApi(): MusicFlowApi {
     resolveTrackUrl: async (trackId) => {
       try {
         const track = await apiFetch<Track>(`/api/tracks/${trackId}`)
+        if (/^https?:\/\//i.test(track.path)) {
+          return { ok: true, url: track.path, track }
+        }
         const token = getToken()
         const base = getApiBase()
         const url = `${base}/api/tracks/${trackId}/stream${token ? `?access_token=${encodeURIComponent(token)}` : ''}`

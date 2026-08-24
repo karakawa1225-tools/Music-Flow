@@ -34,8 +34,17 @@ JWT_SECRET=長いランダム文字列
 turso db shell music-flow < turso/schema.sql
 ```
 
-## できること
+## Vercel デプロイ
 
-- メール＋パスワード登録 / ログイン
-- MP3 アップロード・ストリーミング（Range 対応）
-- ライブラリ / プレイリスト / お気に入り
+GitHub `Music-Flow` に連携済み。必要な環境変数:
+
+- `TURSO_DATABASE_URL`
+- `TURSO_AUTH_TOKEN`
+- `JWT_SECRET`
+- `BLOB_READ_WRITE_TOKEN`（音声アップロード用。Vercel → Storage → Blob で作成）
+
+ローカル:
+
+```bash
+npm run dev:web
+```
