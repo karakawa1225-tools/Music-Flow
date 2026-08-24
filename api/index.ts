@@ -4,7 +4,6 @@ import { createApp } from '../src/server/app'
 import { migrate } from '../src/server/db'
 
 export const config = {
-  runtime: 'nodejs',
   maxDuration: 60
 }
 
@@ -16,10 +15,9 @@ async function ensureReady() {
   migrated = true
 }
 
-const root = new Hono()
+const app = new Hono().basePath('/api')
 
-root.use('*', async (c, next) => {
-  // Dedicated /api/health.ts handles health without this bundle
+app.use('*', async (c, next) => {
   try {
     await ensureReady()
   } catch (error) {
@@ -34,6 +32,6 @@ root.use('*', async (c, next) => {
   await next()
 })
 
-root.route('/', createApp())
+app.route('/', createApp())
 
-export default handle(root)
+export default handle(app)

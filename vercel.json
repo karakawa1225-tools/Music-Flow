@@ -5,13 +5,14 @@
   "outputDirectory": "dist-web",
   "installCommand": "npm install --ignore-scripts",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "functions": {
     "api/health.ts": {
       "maxDuration": 10
     },
-    "api/[[...route]].ts": {
+    "api/index.ts": {
       "maxDuration": 60,
       "includeFiles": "turso/**"
     }

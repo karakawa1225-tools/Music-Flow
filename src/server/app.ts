@@ -91,14 +91,14 @@ export function createApp() {
     })
   )
 
-  app.get('/api/health', (c) =>
+  app.get('/health', (c) =>
     c.json({
       ok: true,
       db: process.env.TURSO_DATABASE_URL ? 'turso' : 'local-libsql'
     })
   )
 
-  app.post('/api/auth/signup', async (c) => {
+  app.post('/auth/signup', async (c) => {
     const body = await c.req.json<{ email?: string; password?: string; displayName?: string }>()
     const email = body.email?.trim()
     const password = body.password || ''
@@ -112,7 +112,7 @@ export function createApp() {
     return c.json({ token, user: { id: user.id, email: user.email } })
   })
 
-  app.post('/api/auth/signin', async (c) => {
+  app.post('/auth/signin', async (c) => {
     const body = await c.req.json<{ email?: string; password?: string }>()
     const email = body.email?.trim()
     const password = body.password || ''
@@ -126,7 +126,7 @@ export function createApp() {
     return c.json({ token, user })
   })
 
-  app.get('/api/auth/me', authMiddleware, (c) => {
+  app.get('/auth/me', authMiddleware, (c) => {
     const user = c.get('user')
     return c.json({ user })
   })
@@ -631,12 +631,14 @@ export function createApp() {
     return c.json({ ok: true })
   })
 
-  app.route('/api', api)
+  app.route('/', api)
   return app
 }
 
 export async function bootServer() {
   ensureLocalAudioDir()
   await migrate()
-  return createApp()
+  const app = new Hono().basePath('/api')
+  app.route('/', createApp())
+  return app
 }
