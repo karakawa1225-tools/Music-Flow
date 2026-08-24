@@ -20,6 +20,9 @@ export default defineConfig(({ mode }) => {
       }
     },
     plugins: [react()],
+    optimizeDeps: {
+      include: ['@vercel/blob/client']
+    },
     server: {
       port: 5174,
       strictPort: true,

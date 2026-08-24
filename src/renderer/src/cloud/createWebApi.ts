@@ -2,6 +2,7 @@ import { DEFAULT_SETTINGS, type AppSettings, type PlaybackSnapshot, type ScanPro
 import type { MusicFlowApi } from '@shared/musicFlowApi'
 import type { Track } from '@shared/types'
 import { apiFetch, getApiBase, getToken, setToken } from './apiClient'
+import { mapPool, uploadCoverFile, uploadTrackFile } from './directUpload'
 
 function idleScan(message = ''): ScanProgress {
   return { phase: 'idle', current: 0, total: 0, message }
@@ -31,7 +32,15 @@ export function createWebMusicFlowApi(): MusicFlowApi {
   const api: MusicFlowApi = {
     getAppPaths: async () => ({ web: true, backend: 'turso' }),
     selectMusicFolder: async () => null,
-    selectCoverImage: async () => null,
+    selectCoverImage: async () => {
+      const files = await pickFiles({
+        accept: 'image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp',
+        multiple: false
+      })
+      const file = files[0]
+      if (!file) return null
+      return uploadCoverFile(file)
+    },
     openPath: async () => undefined,
 
     selectMp3Files: async () => {
@@ -55,20 +64,18 @@ export function createWebMusicFlowApi(): MusicFlowApi {
       if (!mp3s.length) return
 
       emitScan({ phase: 'scanning', current: 0, total: mp3s.length, message: 'アップロード準備中...' })
-      for (let i = 0; i < mp3s.length; i++) {
-        const file = mp3s[i]
+      let completed = 0
+      await mapPool(mp3s, 3, async (file) => {
+        const duration = await pickAudioDuration(file)
+        await uploadTrackFile(file, duration)
+        completed += 1
         emitScan({
           phase: 'parsing',
-          current: i + 1,
+          current: completed,
           total: mp3s.length,
           message: `${file.name} をアップロード中...`
         })
-        const duration = await pickAudioDuration(file)
-        const form = new FormData()
-        form.append('file', file)
-        form.append('duration', String(duration))
-        await apiFetch('/api/upload', { method: 'POST', body: form })
-      }
+      })
       emitScan({ phase: 'done', current: mp3s.length, total: mp3s.length, message: 'アップロード完了' })
       setTimeout(() => emitScan(idleScan()), 800)
     },
@@ -169,7 +176,17 @@ export function createWebMusicFlowApi(): MusicFlowApi {
         method: 'PUT',
         body: JSON.stringify(snapshot)
       }),
-    getCoverUrl: async (coverPath) => coverPath,
+    getCoverUrl: async (coverPath) => {
+      if (!coverPath) return null
+      if (/^https?:\/\//i.test(coverPath) || coverPath.startsWith('blob:') || coverPath.startsWith('data:')) {
+        return coverPath
+      }
+      const token = getToken()
+      const base = getApiBase()
+      const qs = new URLSearchParams({ path: coverPath })
+      if (token) qs.set('access_token', token)
+      return `${base}/api/covers?${qs.toString()}`
+    },
 
     getPathForFile: () => '',
 
@@ -198,7 +215,14 @@ function pickFiles(options: { accept: string; multiple?: boolean }): Promise<Fil
     input.type = 'file'
     input.accept = options.accept
     input.multiple = Boolean(options.multiple)
-    input.onchange = () => resolve(Array.from(input.files ?? []))
+    let settled = false
+    const finish = (files: File[]) => {
+      if (settled) return
+      settled = true
+      resolve(files)
+    }
+    input.addEventListener('change', () => finish(Array.from(input.files ?? [])))
+    input.addEventListener('cancel', () => finish([]))
     input.click()
   })
 }

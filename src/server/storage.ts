@@ -5,9 +5,28 @@ import type { Context } from 'hono'
 import { stream } from 'hono/streaming'
 
 const AUDIO_DIR = resolve(process.cwd(), 'data', 'audio')
+const COVER_DIR = resolve(process.cwd(), 'data', 'covers')
 
 export function useBlobStorage(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN) || process.env.VERCEL === '1'
+}
+
+async function putBlob(
+  key: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error(
+      'Vercel Blob が未設定です。Vercel ダッシュボードで Blob Store を作成し、BLOB_READ_WRITE_TOKEN を設定してください。'
+    )
+  }
+  const result = await put(key, buffer, {
+    access: 'public',
+    contentType,
+    addRandomSuffix: false
+  })
+  return result.url
 }
 
 export async function saveAudioFile(
@@ -16,23 +35,36 @@ export async function saveAudioFile(
   contentType = 'audio/mpeg'
 ): Promise<string> {
   if (useBlobStorage()) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      throw new Error(
-        'Vercel Blob が未設定です。Vercel ダッシュボードで Blob Store を作成し、BLOB_READ_WRITE_TOKEN を設定してください。'
-      )
-    }
-    const result = await put(`audio/${relativePath}`, buffer, {
-      access: 'public',
-      contentType,
-      addRandomSuffix: false
-    })
-    return result.url
+    return putBlob(`audio/${relativePath}`, buffer, contentType)
   }
 
   const absPath = join(AUDIO_DIR, relativePath)
   mkdirSync(resolve(absPath, '..'), { recursive: true })
   writeFileSync(absPath, buffer)
   return relativePath
+}
+
+export async function saveCoverFile(
+  relativePath: string,
+  buffer: Buffer,
+  contentType = 'image/jpeg'
+): Promise<string> {
+  if (useBlobStorage()) {
+    return putBlob(`covers/${relativePath}`, buffer, contentType)
+  }
+
+  const absPath = join(COVER_DIR, relativePath)
+  mkdirSync(resolve(absPath, '..'), { recursive: true })
+  writeFileSync(absPath, buffer)
+  return `covers/${relativePath}`
+}
+
+export function resolveLocalCoverPath(storagePath: string): string | null {
+  if (!storagePath.startsWith('covers/')) return null
+  const absPath = resolve(COVER_DIR, storagePath.slice('covers/'.length))
+  const rel = absPath.slice(COVER_DIR.length).replace(/^[\\/]/, '')
+  if (!absPath.startsWith(COVER_DIR) || rel.includes('..') || !existsSync(absPath)) return null
+  return absPath
 }
 
 export async function streamAudio(c: Context, storagePath: string) {

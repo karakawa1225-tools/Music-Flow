@@ -1,3 +1,4 @@
+import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { randomUUID } from 'crypto'
@@ -5,7 +6,16 @@ import { DEFAULT_SETTINGS, type AppSettings, type PlaybackSnapshot } from '../sh
 import { authMiddleware, createUser, findUserByEmail, signToken, verifyPassword } from './auth'
 import { getDb, migrate, num } from './db'
 import { TRACK_JOIN, mapAlbum, mapPlaylist, mapTrack } from './mappers'
-import { ensureLocalAudioDir, saveAudioFile, streamAudio } from './storage'
+import {
+  ensureLocalAudioDir,
+  resolveLocalCoverPath,
+  saveAudioFile,
+  saveCoverFile,
+  streamAudio
+} from './storage'
+import { createReadStream, statSync } from 'fs'
+import { extname } from 'path'
+import { stream } from 'hono/streaming'
 
 async function ensureArtist(userId: string, name: string): Promise<number> {
   const db = getDb()
@@ -49,6 +59,54 @@ async function getTrackForUser(userId: string, trackId: number) {
     args: [trackId, userId]
   })
   return result.rows[0] ? mapTrack(result.rows[0] as Record<string, unknown>) : null
+}
+
+async function createTrackRecord(input: {
+  userId: string
+  title: string
+  filename: string
+  duration: number
+  storagePath: string
+  fileSize: number
+}) {
+  const artistId = await ensureArtist(input.userId, 'Unknown Artist')
+  const albumId = await ensureAlbum(input.userId, 'Unknown Album', artistId)
+  const db = getDb()
+  const inserted = await db.execute({
+    sql: `
+      INSERT INTO tracks (
+        user_id, title, filename, artist_id, album_id, duration, storage_path, file_size
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id
+    `,
+    args: [
+      input.userId,
+      input.title,
+      input.filename,
+      artistId,
+      albumId,
+      input.duration || 0,
+      input.storagePath,
+      input.fileSize
+    ]
+  })
+  return getTrackForUser(input.userId, num(inserted.rows[0]?.id))
+}
+
+function blobDirectEnabled(): boolean {
+  return Boolean((process.env.BLOB_READ_WRITE_TOKEN || '').trim())
+}
+
+function isOwnedBlobUrl(url: string, userId: string, kind: 'audio' | 'covers'): boolean {
+  if (!/^https?:\/\//i.test(url)) return false
+  try {
+    const { pathname } = new URL(url)
+    const decoded = decodeURIComponent(pathname)
+    const marker = `/${kind}/${userId}/`
+    return decoded.includes(marker) || pathname.includes(marker)
+  } catch {
+    return false
+  }
 }
 
 async function playlistExtras(userId: string, playlist: ReturnType<typeof mapPlaylist>) {
@@ -230,6 +288,85 @@ export function createApp() {
     return streamAudio(c, track.path)
   })
 
+  api.get('/upload-config', (c) =>
+    c.json({
+      directBlob: blobDirectEnabled(),
+      maxAudioBytes: 200 * 1024 * 1024,
+      maxCoverBytes: 8 * 1024 * 1024
+    })
+  )
+
+  api.post('/blob/token', async (c) => {
+    if (!blobDirectEnabled()) {
+      return c.json({ error: 'Blob direct upload is not configured' }, 503)
+    }
+    const user = c.get('user')
+    const body = await c.req.json<{ pathname?: string; kind?: 'audio' | 'cover' }>()
+    const kind = body.kind === 'cover' ? 'cover' : 'audio'
+    const pathname = (body.pathname || '').replace(/^\/+/, '')
+    const prefix = kind === 'cover' ? `covers/${user.id}/` : `audio/${user.id}/`
+    if (!pathname.startsWith(prefix)) {
+      return c.json({ error: 'Invalid upload path' }, 400)
+    }
+    if (pathname.includes('..') || pathname.length > 400) {
+      return c.json({ error: 'Invalid upload path' }, 400)
+    }
+
+    try {
+      const clientToken = await generateClientTokenFromReadWriteToken({
+        pathname,
+        addRandomSuffix: false,
+        allowOverwrite: false,
+        maximumSizeInBytes: kind === 'cover' ? 8 * 1024 * 1024 : 200 * 1024 * 1024,
+        allowedContentTypes:
+          kind === 'cover'
+            ? ['image/png', 'image/jpeg', 'image/webp', 'image/jpg']
+            : ['audio/mpeg', 'audio/mp3', 'application/octet-stream'],
+        validUntil: Date.now() + 60 * 60 * 1000
+      })
+      return c.json({ clientToken, pathname })
+    } catch (error) {
+      return c.json(
+        {
+          error: error instanceof Error ? error.message : 'Failed to create upload token'
+        },
+        500
+      )
+    }
+  })
+
+  api.post('/tracks/register', async (c) => {
+    const user = c.get('user')
+    const body = await c.req.json<{
+      storagePath?: string
+      filename?: string
+      duration?: number
+      fileSize?: number
+    }>()
+    const storagePath = (body.storagePath || '').trim()
+    const filename = (body.filename || '').trim()
+    if (!storagePath || !filename) {
+      return c.json({ error: 'storagePath and filename are required' }, 400)
+    }
+    if (!/\.mp3$/i.test(filename)) {
+      return c.json({ error: 'MP3のみ対応しています' }, 400)
+    }
+    if (!isOwnedBlobUrl(storagePath, user.id, 'audio')) {
+      return c.json({ error: 'Invalid storage URL' }, 400)
+    }
+
+    const title = filename.replace(/\.[^.]+$/, '').trim() || filename
+    const track = await createTrackRecord({
+      userId: user.id,
+      title,
+      filename,
+      duration: Number(body.duration) || 0,
+      storagePath,
+      fileSize: Math.max(0, Number(body.fileSize) || 0)
+    })
+    return c.json(track)
+  })
+
   api.post('/upload', async (c) => {
     const user = c.get('user')
     ensureLocalAudioDir()
@@ -254,23 +391,72 @@ export function createApp() {
       )
     }
 
-    const artistId = await ensureArtist(user.id, 'Unknown Artist')
-    const albumId = await ensureAlbum(user.id, 'Unknown Album', artistId)
     const title = file.name.replace(/\.[^.]+$/, '').trim() || file.name
-
-    const db = getDb()
-    const inserted = await db.execute({
-      sql: `
-        INSERT INTO tracks (
-          user_id, title, filename, artist_id, album_id, duration, storage_path, file_size
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING id
-      `,
-      args: [user.id, title, file.name, artistId, albumId, duration || 0, storagePath, buffer.length]
+    const track = await createTrackRecord({
+      userId: user.id,
+      title,
+      filename: file.name,
+      duration,
+      storagePath,
+      fileSize: buffer.length
     })
-    const trackId = num(inserted.rows[0]?.id)
-    const track = await getTrackForUser(user.id, trackId)
     return c.json(track)
+  })
+
+  api.post('/upload-cover', async (c) => {
+    const user = c.get('user')
+    const form = await c.req.formData()
+    const file = form.get('file')
+    if (!(file instanceof File)) return c.json({ error: 'file is required' }, 400)
+
+    const ext = extname(file.name).toLowerCase()
+    const allowedExt = ['.png', '.jpg', '.jpeg', '.webp']
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/jpg']
+    if (!allowedExt.includes(ext) && !allowedTypes.includes(file.type)) {
+      return c.json({ error: '画像は PNG / JPEG / WebP のみ対応しています' }, 400)
+    }
+
+    const id = randomUUID()
+    const safeExt = allowedExt.includes(ext) ? ext : '.jpg'
+    const relativePath = `${user.id}/${id}${safeExt}`
+    const buffer = Buffer.from(await file.arrayBuffer())
+    if (buffer.length > 8 * 1024 * 1024) {
+      return c.json({ error: '画像は 8MB 以下にしてください' }, 400)
+    }
+
+    let url: string
+    try {
+      url = await saveCoverFile(relativePath, buffer, file.type || 'image/jpeg')
+    } catch (error) {
+      return c.json(
+        { error: error instanceof Error ? error.message : 'カバー画像のアップロードに失敗しました' },
+        500
+      )
+    }
+    return c.json({ url })
+  })
+
+  api.get('/covers', async (c) => {
+    const path = c.req.query('path') || ''
+    if (/^https?:\/\//i.test(path)) return c.redirect(path, 302)
+    const abs = resolveLocalCoverPath(path)
+    if (!abs) return c.json({ error: 'Not found' }, 404)
+    const user = c.get('user')
+    if (!path.startsWith(`covers/${user.id}/`)) {
+      return c.json({ error: 'Forbidden' }, 403)
+    }
+    const stat = statSync(abs)
+    const type =
+      abs.endsWith('.png') ? 'image/png' : abs.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+    c.header('Content-Type', type)
+    c.header('Content-Length', String(stat.size))
+    c.header('Cache-Control', 'private, max-age=86400')
+    return stream(c, async (s) => {
+      const nodeStream = createReadStream(abs)
+      for await (const chunk of nodeStream) {
+        await s.write(chunk)
+      }
+    })
   })
 
   api.get('/stats', async (c) => {
