@@ -1,5 +1,6 @@
+import type { IncomingMessage, ServerResponse } from 'http'
+import { getRequestListener } from '@hono/node-server'
 import { Hono } from 'hono'
-import { handle } from 'hono/vercel'
 import { createApp } from '../src/server/app'
 import { migrate } from '../src/server/db'
 
@@ -8,30 +9,35 @@ export const config = {
 }
 
 let migrated = false
+let listener: ReturnType<typeof getRequestListener> | null = null
 
-async function ensureReady() {
-  if (migrated) return
-  await migrate()
-  migrated = true
+async function getListener() {
+  if (!migrated) {
+    await migrate()
+    migrated = true
+  }
+  if (!listener) {
+    const app = new Hono().basePath('/api')
+    app.route('/', createApp())
+    listener = getRequestListener(app.fetch)
+  }
+  return listener
 }
 
-const app = new Hono().basePath('/api')
-
-app.use('*', async (c, next) => {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
-    await ensureReady()
+    const run = await getListener()
+    await run(req, res)
   } catch (error) {
-    return c.json(
-      {
-        error: 'Database migration failed',
-        detail: error instanceof Error ? error.message : String(error)
-      },
-      500
-    )
+    if (!res.headersSent) {
+      res.statusCode = 500
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          error: 'API handler failed',
+          detail: error instanceof Error ? error.message : String(error)
+        })
+      )
+    }
   }
-  await next()
-})
-
-app.route('/', createApp())
-
-export default handle(app)
+}
