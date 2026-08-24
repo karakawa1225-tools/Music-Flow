@@ -1,4 +1,5 @@
 import type { Album, Playlist, Track } from '../shared/types'
+import { resolveSystemPlaylistCover } from '../shared/systemCovers'
 import { bool, num, str, type DbRow } from './db'
 
 export function mapTrack(row: DbRow): Track {
@@ -49,13 +50,15 @@ export function mapAlbum(row: DbRow): Album {
 }
 
 export function mapPlaylist(row: DbRow): Playlist {
+  const systemKey = row.system_key == null ? null : str(row.system_key)
+  const coverPath = row.cover_path == null ? null : str(row.cover_path)
   return {
     id: num(row.id),
     name: str(row.name),
     description: row.description == null ? null : str(row.description),
-    coverPath: row.cover_path == null ? null : str(row.cover_path),
+    coverPath: resolveSystemPlaylistCover(systemKey, coverPath),
     isSystem: bool(row.is_system),
-    systemKey: row.system_key == null ? null : str(row.system_key),
+    systemKey,
     trackCount: row.track_count == null ? undefined : num(row.track_count),
     totalDuration: row.total_duration == null ? undefined : num(row.total_duration),
     createdAt: str(row.created_at),

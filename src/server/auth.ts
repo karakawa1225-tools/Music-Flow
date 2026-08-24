@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import type { Context, Next } from 'hono'
+import { SYSTEM_PLAYLIST_COVERS } from '../shared/systemCovers'
 import { getDb } from './db'
 
 const JWT_SECRET = () => process.env.JWT_SECRET || 'music-flow-dev-secret-change-me'
@@ -46,12 +47,12 @@ export async function createUser(email: string, password: string, displayName?: 
   })
 
   await db.execute({
-    sql: `INSERT INTO playlists (user_id, name, is_system, system_key) VALUES (?, 'お気に入り', 1, 'favorites')`,
-    args: [id]
+    sql: `INSERT INTO playlists (user_id, name, is_system, system_key, cover_path) VALUES (?, 'お気に入り', 1, 'favorites', ?)`,
+    args: [id, SYSTEM_PLAYLIST_COVERS.favorites]
   })
   await db.execute({
-    sql: `INSERT INTO playlists (user_id, name, is_system, system_key) VALUES (?, '最近再生した曲', 1, 'recent')`,
-    args: [id]
+    sql: `INSERT INTO playlists (user_id, name, is_system, system_key, cover_path) VALUES (?, '最近再生した曲', 1, 'recent', ?)`,
+    args: [id, SYSTEM_PLAYLIST_COVERS.recent]
   })
   await db.execute({
     sql: `INSERT INTO user_settings (user_id, settings_json) VALUES (?, '{}')`,

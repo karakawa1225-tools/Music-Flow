@@ -145,6 +145,16 @@ CREATE TABLE IF NOT EXISTS playback_snapshots (
   for (const statement of statements) {
     await db.execute(statement)
   }
+
+  // Keep built-in playlist covers pointed at static web assets
+  await db.execute({
+    sql: `UPDATE playlists SET cover_path = ? WHERE system_key = 'favorites'`,
+    args: ['/system-covers/favorites.png']
+  })
+  await db.execute({
+    sql: `UPDATE playlists SET cover_path = ? WHERE system_key = 'recent'`,
+    args: ['/system-covers/recent.png']
+  })
 }
 
 export type DbRow = Record<string, unknown>

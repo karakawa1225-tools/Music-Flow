@@ -178,7 +178,12 @@ export function createWebMusicFlowApi(): MusicFlowApi {
       }),
     getCoverUrl: async (coverPath) => {
       if (!coverPath) return null
-      if (/^https?:\/\//i.test(coverPath) || coverPath.startsWith('blob:') || coverPath.startsWith('data:')) {
+      if (
+        /^https?:\/\//i.test(coverPath) ||
+        coverPath.startsWith('blob:') ||
+        coverPath.startsWith('data:') ||
+        coverPath.startsWith('/')
+      ) {
         return coverPath
       }
       const token = getToken()
